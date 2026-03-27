@@ -412,7 +412,7 @@ header {
 /* Legend */
 .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; }
 .li { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-dim); font-family: var(--font-mono); }
-.sw { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.sw { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; border: 1px solid transparent; }
 
 /* SVG container */
 #dp-container {
@@ -604,7 +604,35 @@ canvas {
 /* ---- DIRECTION ARROW in cells ---- */
 .cell-arr { pointer-events: none; }
 
-/* ---- CHARACTER COMPARE FLASH ---- */
+/* ---- VIZ SEARCH BANNER (Tab 0 in-animation search highlight — CLO-2) ---- */
+#viz-search-banner {
+  display: none;
+  margin: 8px 0 4px;
+  padding: 8px 14px;
+  background: rgba(0,0,0,0.35);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  animation: bannerIn 0.25s ease;
+}
+#viz-search-banner.show { display: flex; }
+@keyframes bannerIn {
+  from { opacity:0; transform:translateY(-4px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.vsb-char {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 6px;
+  font-family: var(--font-mono); font-size: 18px; font-weight: 700;
+  border: 2px solid transparent; transition: all 0.2s;
+}
+.vsb-match { background: rgba(0,255,136,0.15); border-color: var(--green); color: var(--green); box-shadow: 0 0 10px rgba(0,255,136,0.3); }
+.vsb-miss  { background: rgba(255,71,87,0.15);  border-color: var(--red);   color: var(--red);   box-shadow: 0 0 10px rgba(255,71,87,0.3); }
+.vsb-op { font-size: 20px; color: var(--text-faint); }
+.vsb-result-match { color: var(--green); font-size: 12px; font-weight: 700; }
+.vsb-result-miss  { color: var(--red);   font-size: 12px; font-weight: 700; }
 .compare-flash {
   background: rgba(255,215,0,0.12);
   border: 1px solid var(--yellow-dim);
@@ -629,14 +657,16 @@ canvas {
 .tabs-wrapper {
   position: relative;
 }
-.tabs-wrapper::after {
-  content: '';
-  position: absolute;
-  right: 0; top: 0; bottom: 1px;
-  width: 36px;
-  background: linear-gradient(to right, transparent, var(--surface));
-  pointer-events: none;
-  z-index: 11;
+@media (max-width: 980px) {
+  .tabs-wrapper::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 1px;
+    width: 36px;
+    background: linear-gradient(to right, transparent, var(--surface));
+    pointer-events: none;
+    z-index: 11;
+  }
 }
 
 /* ---- QUIZ STYLES ---- */
@@ -731,6 +761,7 @@ canvas {
       <div class="lsec-title">Playback Controls</div>
       <div class="speed-row">
         <label>Speed</label>
+        <!-- Speed: internal 1-8 maps to display 0.25x–4x via updateSpeed() -->
         <input type="range" id="speed-slider" min="1" max="8" step="1" value="4" oninput="updateSpeed(this.value)">
         <span class="speed-val" id="speed-val">1×</span>
       </div>
@@ -833,6 +864,15 @@ canvas {
         <div style="color:var(--text-faint);font-size:12px;font-family:var(--font-mono);padding:30px;text-align:center;">
           Click <strong style="color:var(--accent)">Build Steps</strong> in the left panel to generate the DP table animation.
         </div>
+      </div>
+
+
+      <!-- CLO-2: Character search banner — shown in main viz during every compute step -->
+      <div id="viz-search-banner" style="display:none;">
+        <span style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-faint);font-weight:700;font-family:var(--font-mono);">🔍 CLO-2 Character Search</span>
+        <div id="viz-search-chars" style="display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:14px;"></div>
+        <div id="viz-search-result" style="font-size:11px;font-family:var(--font-mono);font-weight:700;margin-left:4px;"></div>
+        <span id="viz-search-cost" style="font-size:11px;font-family:var(--font-mono);color:var(--text-faint);margin-left:auto;"></span>
       </div>
 
       <div class="op-display" id="op-display" style="display:none">
@@ -1225,25 +1265,28 @@ canvas {
 
       <div class="section-divider"></div>
       <div class="ch3">Counterexample: Why Greedy Fails</div>
-      <p class="cp">A greedy approach picks the cheapest single operation at each position. But local cheapness does not guarantee a globally optimal result:</p>
+      <p class="cp">A greedy algorithm substitutes at each mismatched position without looking ahead. This always costs one operation per mismatch — but DP can find cheaper paths by considering deletions and insertions across the whole string:</p>
       <div class="ac">
         <div class="ac-card">
-          <h4>Greedy: "abcde" → "bcdea"</h4>
-          <p>At position 1: a≠b, greedy substitutes a→b → "bbcde". Then b=b ✓, c=c ✓, d=d ✓, e=e ✓, but 'a' is left over → delete. Total: <strong>1 sub + 1 delete = 2 ops</strong>… but now 'a' is missing from the end, so greedy must insert 'a' → <strong>3 operations</strong>. Greedy commits to the substitution early and cannot recover.</p>
-          <span class="badge badge-b">Greedy result: 3 operations ✗</span>
+          <h4>Greedy: "abc" → "cab"</h4>
+          <p>Greedy compares position by position: a≠c → sub a→c → "cbc" (cost 1). b≠a → sub b→a → "cac" (cost 1). c≠b → sub c→b → "cab" (cost 1). Greedy commits a substitution at every position and cannot recover.</p>
+          <span class="badge badge-b">Greedy result: 3 substitutions ✗</span>
         </div>
         <div class="ac-card hl">
-          <h4>DP Optimal: "abcde" → "bcdea"</h4>
-          <p>DP sees the full picture: delete 'a' from the front, then match b,c,d,e, then insert 'a' at the end. That is just 2 operations — DP never makes the greedy substitution mistake because it evaluates ALL three choices at every cell before committing.</p>
+          <h4>DP Optimal: "abc" → "cab"</h4>
+          <p>DP sees the global picture: insert 'c' at the front → "cabc" (cost 1), then delete the trailing 'c' → "cab" (cost 1). Just 2 operations. DP found this cheaper path because it evaluated ALL three choices (ins, del, sub) at every cell before committing.</p>
           <span class="badge badge-g">DP result: 2 operations ✓</span>
         </div>
       </div>
-      <div class="cb cb-warn"><strong>Why Greedy Cannot Work Here:</strong> Greedy substitutes 'a'→'b' at position 1 because it is the cheapest local fix. But this destroys the alignment and costs more globally. DP checks delete+insert (cost 2) vs substitute (cost 1+extra) across all paths and picks the true minimum — something greedy, which only looks one step ahead, can never guarantee.</div>
+      <div class="cb cb-warn"><strong>Why Greedy Fails:</strong> Greedy sees a≠c and immediately pays cost 1 to substitute. It never considers whether deleting or inserting earlier could align more characters for free. DP avoids this by computing the true minimum across all subproblems — a guarantee greedy cannot make.</div>
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:var(--font-mono);font-size:11px;line-height:2;margin-top:8px;">
-        <span style="color:var(--text-faint)">// Verify: "abcde" → "bcdea"</span><br>
-        Greedy path: sub(a→b), match b, match c, match d, match e, ins(a) = <span style="color:var(--red)">3 ops</span><br>
-        DP optimal:  del(a), match b, match c, match d, match e, ins(a)  = <span style="color:var(--green)">2 ops</span><br>
-        <span style="color:var(--yellow)">Greedy is 50% worse on this input.</span>
+        <span style="color:var(--text-faint)">// Verify: "abc" → "cab"  (run this preset in the visualizer!)</span><br>
+        Greedy: sub(a→c), sub(b→a), sub(c→b) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= <span style="color:var(--red)">3 ops ✗</span><br>
+        DP:&nbsp;&nbsp;&nbsp;&nbsp; ins(c), match(a), match(b), del(c) = <span style="color:var(--green)">2 ops ✓</span><br>
+        <span style="color:var(--yellow)">Greedy is 50% worse. Try it: load "abc"→"cab" in the visualizer above.</span>
+      </div>
+      <div style="margin-top:10px;">
+        <button class="preset-btn" style="font-size:11px;padding:5px 12px;" onclick="switchTab(0);loadPreset('abc','cab');setTimeout(buildStepsAction,100)">▶ Run "abc"→"cab" in Visualizer</button>
       </div>
     </div>
 
@@ -1685,7 +1728,7 @@ function applyStep(idx) {
   if (step.type === 'init') {
     setCellState(step.i, step.j, step.val, 'init');
   } else if (step.type === 'compute') {
-    // ---- Character comparison flash ----
+    // ---- Left panel compare flash ----
     const flashEl = document.getElementById('compare-flash');
     if (step.match) {
       flashEl.innerHTML = `🔍 SEARCH: s[${step.i}]='<span class="cf-match">${step.si}</span>' = t[${step.j}]='<span class="cf-match">${step.tj}</span>' → <span class="cf-match">MATCH ✓</span> cost=0`;
@@ -1693,8 +1736,11 @@ function applyStep(idx) {
       flashEl.innerHTML = `🔍 SEARCH: s[${step.i}]='<span class="cf-miss">${step.si}</span>' ≠ t[${step.j}]='<span class="cf-miss">${step.tj}</span>' → <span class="cf-miss">MISMATCH ✗</span> cost=1`;
     }
     flashEl.classList.remove('show');
-    void flashEl.offsetWidth; // reflow to re-trigger animation
+    void flashEl.offsetWidth;
     flashEl.classList.add('show');
+
+    // ---- Tab 0 viz search banner (CLO-2 visible in main animation) ----
+    updateVizSearchBanner(step);
 
     // Highlight neighbors
     setCellState(step.i-1, step.j, state.dp[step.i-1][step.j], 'neighbor');
@@ -1703,11 +1749,10 @@ function applyStep(idx) {
     // Active cell
     setCellState(step.i, step.j, step.val, 'active');
 
-    // Then mark filled (do it immediately for now - will show value)
+    // Then mark filled
     setTimeout(()=>{
       const s2 = step.match ? 'filled_match' : 'filled_op';
       setCellState(step.i, step.j, step.val, s2, step.op);
-      // restore neighbors to their proper filled state
       restoreCell(step.i-1, step.j);
       restoreCell(step.i, step.j-1);
       restoreCell(step.i-1, step.j-1);
@@ -1727,9 +1772,10 @@ function applyStep(idx) {
     updatePointers(step.i, step.j);
 
   } else if (step.type === 'traceback') {
-    // Hide compare flash during traceback
+    // Hide both flash elements during traceback
     const flashEl = document.getElementById('compare-flash');
     if (flashEl) flashEl.classList.remove('show');
+    hideVizSearchBanner();
     hidePointers();
     // Only set the NEWEST cell (previous ones already set from prior steps)
     const newKey = step.pathSoFar[step.pathSoFar.length - 1];
@@ -1777,6 +1823,40 @@ function restoreCell(i, j) {
       setCellState(i, j, v, 'init');
     }
   }
+}
+
+// =============================================
+//  VIZ SEARCH BANNER (CLO-2 in main animation)
+// =============================================
+function updateVizSearchBanner(step) {
+  const banner = document.getElementById('viz-search-banner');
+  const chars  = document.getElementById('viz-search-chars');
+  const result = document.getElementById('viz-search-result');
+  const cost   = document.getElementById('viz-search-cost');
+  if (!banner) return;
+
+  const cls = step.match ? 'vsb-match' : 'vsb-miss';
+  chars.innerHTML =
+    `<span class="vsb-char ${cls}">${step.si}</span>` +
+    `<span class="vsb-op">${step.match ? '=' : '≠'}</span>` +
+    `<span class="vsb-char ${cls}">${step.tj}</span>`;
+
+  if (step.match) {
+    result.innerHTML = `<span class="vsb-result-match">MATCH ✓ &nbsp;cost = 0 &nbsp;→ free diagonal move</span>`;
+  } else {
+    result.innerHTML = `<span class="vsb-result-miss">MISMATCH ✗ &nbsp;cost = 1 &nbsp;→ substitution penalty</span>`;
+  }
+  cost.textContent = `s[${step.i}] vs t[${step.j}]`;
+
+  banner.classList.remove('show');
+  void banner.offsetWidth;
+  banner.classList.add('show');
+  banner.style.display = 'flex';
+}
+
+function hideVizSearchBanner() {
+  const banner = document.getElementById('viz-search-banner');
+  if (banner) { banner.classList.remove('show'); banner.style.display = 'none'; }
 }
 
 // =============================================
@@ -1899,7 +1979,6 @@ function addHistory(idx, step) {
 }
 
 function jumpTo(idx) {
-  // Rebuild and replay to that step
   resetDisplay();
   state.currentStep = -1;
   state.stats = {cmp:0,match:0,sub:0,ins:0,del:0,dist:'—'};
@@ -1907,18 +1986,38 @@ function jumpTo(idx) {
   document.getElementById('hist-body').innerHTML = '';
   document.getElementById('stat-dist').textContent = '—';
   updateStatsUI();
+  // Clear search indicators
+  const cf = document.getElementById('compare-flash');
+  if (cf) cf.classList.remove('show');
+  hideVizSearchBanner();
+  hidePointers();
+
   for (let k=0; k<=idx; k++) {
     applyStepInstant(k);
   }
-  // Rebuild history for visible range (last 30 steps up to idx)
+
+  // Rebuild history ascending (oldest→newest) — addHistory inserts at top
+  // so oldest ends up at bottom, newest at top = correct display order
   const start = Math.max(0, idx - 29);
   for (let k=start; k<=idx; k++) {
     addHistory(k, state.steps[k]);
   }
+
+  // Mark only the target step as active
+  const tbody = document.getElementById('hist-body');
+  tbody.querySelectorAll('tr').forEach(r => r.classList.remove('hact'));
+  const targetRow = tbody.querySelector(`tr[data-step-idx="${idx}"]`);
+  if (targetRow) targetRow.classList.add('hact');
+
   state.currentStep = idx;
   updateStepCounter();
+  updateStatsUI();
   if (idx < state.steps.length-1) setStatus('paused');
-  else setStatus('done');
+  else {
+    state.stats.dist = state.dp[state.src.length][state.tgt.length];
+    document.getElementById('stat-dist').textContent = state.stats.dist;
+    setStatus('done');
+  }
   stopTimer();
 }
 
@@ -1972,6 +2071,10 @@ function buildStepsAction() {
   document.getElementById('expl-box').innerHTML = 'Steps built! Press <strong>Play</strong> or <strong>Step</strong> to begin.';
   document.getElementById('edit-seq-section').style.display = 'none';
   document.getElementById('op-display').style.display = 'none';
+  // Clear search indicators (Medium #8)
+  const cf = document.getElementById('compare-flash');
+  if (cf) cf.classList.remove('show');
+  hideVizSearchBanner();
 
   // Render SVG
   const svg = initSVG(src, tgt);
@@ -2024,6 +2127,10 @@ function resetAction() {
   document.getElementById('expl-box').innerHTML = 'Press <strong>Play</strong> or <strong>Step</strong> to restart.';
   document.getElementById('edit-seq-section').style.display = 'none';
   document.getElementById('op-display').style.display = 'none';
+  // Clear search indicators (Medium #4)
+  const cf = document.getElementById('compare-flash');
+  if (cf) cf.classList.remove('show');
+  hideVizSearchBanner();
   resetDisplay();
   hidePointers();
   updateStepCounter(0, state.steps.length);
@@ -2159,6 +2266,19 @@ function switchTab(idx) {
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
   document.querySelectorAll('.tab-content').forEach((t,i)=>t.classList.toggle('active',i===idx));
   if (idx===1) drawGrowthChart();
+  // Low #12: sync CLO-2 traceback display when user opens that tab
+  if (idx===2) {
+    const placeholder = document.getElementById('tb-ops-display');
+    if (placeholder && state.tracebackOps && state.tracebackOps.length > 0 &&
+        state.currentStep >= 0 &&
+        state.steps[state.currentStep]?.type === 'traceback') {
+      updateTbDisplay();
+    } else if (placeholder && (!state.tracebackOps || state.tracebackOps.length === 0)) {
+      placeholder.innerHTML = '<span style="color:var(--text-faint);font-size:11px;font-family:var(--font-mono)">Run the animation to completion to see the edit sequence here.</span>';
+      const sum = document.getElementById('tb-summary');
+      if (sum) sum.style.display = 'none';
+    }
+  }
 }
 
 // =============================================
@@ -2189,6 +2309,15 @@ function toggleNotation(key) {
 function drawGrowthChart() {
   const canvas = document.getElementById('growth-canvas');
   if (!canvas) return;
+  // Responsive: resize canvas intrinsic resolution to match CSS display width
+  const container = canvas.parentElement;
+  if (container) {
+    const cw = Math.min(container.clientWidth - 2, 700);
+    if (cw > 100 && canvas.width !== cw) {
+      canvas.width  = cw;
+      canvas.height = Math.round(cw * (400/700));
+    }
+  }
   const N = parseInt(document.getElementById('growth-n').value);
   document.getElementById('growth-n-val').textContent = N;
   const ctx = canvas.getContext('2d');
@@ -2690,6 +2819,10 @@ function runOverlapDP(s, t, unique, naive) {
 updateCharCount();
 drawGrowthChart();
 buildQuiz();
+// Redraw chart on window resize for responsive canvas (Low #10)
+window.addEventListener('resize', () => {
+  if (document.getElementById('tab1')?.classList.contains('active')) drawGrowthChart();
+});
 </script>
 </body>
 </html>
