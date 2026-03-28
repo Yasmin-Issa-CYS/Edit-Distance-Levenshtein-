@@ -753,6 +753,7 @@ canvas {
         <button class="preset-btn" onclick="loadPreset('cat','car')">cat→car</button>
         <button class="preset-btn" onclick="loadPreset('algorithm','altruistic')">algorithm→altruistic</button>
         <button class="preset-btn" onclick="loadPreset('abcdef','ghijkl')" title="Worst case: all different">⚠ worst case</button>
+        <button class="preset-btn" onclick="loadPreset('abc','cab')" title="CLO-3 counterexample: greedy=3 ops, DP=2 ops">🧩 greedy fail</button>
       </div>
     </div>
 
@@ -1039,7 +1040,8 @@ canvas {
         <span style="color:var(--purple)">- -</span> Purple = Memoized O(n²) &nbsp;
         <span style="color:var(--red)">- -</span> Red = Naïve O(3ⁿ) &nbsp;
         <span style="color:var(--green)">■</span> Green = O(n) lower &nbsp;
-        <span style="color:var(--yellow)">▒</span> Yellow band = Θ tight region
+        <span style="color:var(--yellow)">▒</span> Yellow band = Θ tight region &nbsp;
+        <span style="color:var(--pink)">●</span> Pink = actual ops from animation
       </p>
 
       <div class="section-divider"></div>
@@ -1948,6 +1950,10 @@ function updateStatsUI() {
   document.getElementById('stat-sub').textContent = state.stats.sub;
   document.getElementById('stat-ins').textContent = state.stats.ins;
   document.getElementById('stat-del').textContent = state.stats.del;
+  // Redraw growth chart live so actual-ops marker tracks animation
+  if (document.getElementById('tab1')?.classList.contains('active')) {
+    drawGrowthChart();
+  }
 }
 
 // =============================================
@@ -2231,7 +2237,7 @@ function renderEditSeq() {
     charDiv.className = 'es-char';
     const classMap = {M:'es-match',S:'es-sub',I:'es-ins',D:'es-del'};
     charDiv.classList.add(classMap[op]||'es-match');
-    charDiv.textContent = sc==='–' ? tc : sc;
+    charDiv.textContent = sc==='-' ? tc : sc;
     const lbl = document.createElement('div');
     lbl.className = 'es-label';
     lbl.textContent = {M:'match',S:'sub',I:'ins',D:'del'}[op];
@@ -2510,6 +2516,33 @@ function drawGrowthChart() {
   ctx.fillText('String length n  (1 to '+N+')', PAD_L+plotW/2, H-4);
   ctx.save(); ctx.translate(12,PAD_T+plotH/2); ctx.rotate(-Math.PI/2);
   ctx.fillText('Operations f(n)',0,0); ctx.restore();
+
+  // ---- Live actual-ops marker (shows real animation counter on chart) ----
+  if (state.stats.cmp > 0 && state.src && state.src.length > 0) {
+    const liveN = Math.max(state.src.length, state.tgt ? state.tgt.length : 0);
+    const liveOps = state.stats.cmp;
+    if (liveN <= N) {
+      const lx = toX(liveN);
+      const ly = toY(Math.min(liveOps, maxVal));
+      // Dashed line from x-axis up to actual point
+      ctx.beginPath(); ctx.setLineDash([3,3]);
+      ctx.strokeStyle='rgba(253,121,168,0.4)'; ctx.lineWidth=1;
+      ctx.moveTo(lx, H-PAD_B); ctx.lineTo(lx, ly);
+      ctx.stroke(); ctx.setLineDash([]);
+      // Outer glow
+      ctx.beginPath(); ctx.arc(lx, ly, 9, 0, Math.PI*2);
+      ctx.fillStyle='rgba(253,121,168,0.15)'; ctx.fill();
+      // Inner dot
+      ctx.beginPath(); ctx.arc(lx, ly, 5, 0, Math.PI*2);
+      ctx.fillStyle='#fd79a8'; ctx.fill();
+      ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke();
+      // Label
+      ctx.font='bold 10px monospace'; ctx.textAlign='center';
+      ctx.fillStyle='#fd79a8';
+      const lblY = Math.max(PAD_T+18, ly-14);
+      ctx.fillText('actual: '+liveOps+' ops', lx, lblY);
+    }
+  }
 }
 
 // =============================================
